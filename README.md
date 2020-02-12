@@ -20,3 +20,18 @@ python adp_downloader.py
 
 Currently the only way to statically configure your company/username/password is by editing the script itself.
 This might change in the future.
+
+## Contribute
+
+This project lives in https://github.com/nicksinger/adp_downloader
+
+Feel free to add issues in github or send pull requests.
+
+### Rules for commits
+
+* For git commit messages use the rules stated on
+  [How to Write a Git Commit Message](http://chris.beams.io/posts/git-commit/) as
+  a reference
+
+If this is too much hassle for you feel free to provide incomplete pull
+requests for consideration or create an issue with a code change proposal.
