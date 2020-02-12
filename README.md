@@ -16,11 +16,6 @@ python adp_downloader.py
 
 **Note** for openSUSE users: Make sure you've installed `python3-requests` and `python3-beautifulsoup4`.
 
-# Configuration
-
-Currently the only way to statically configure your company/username/password is by editing the script itself.
-This might change in the future.
-
 ## Contribute
 
 This project lives in https://github.com/nicksinger/adp_downloader
