@@ -5,6 +5,7 @@ from urllib import parse
 import requests
 import getpass
 import pdb
+import sys
 import os
 import re
 
@@ -24,6 +25,7 @@ if "JSESSIONID" in s.cookies:
     print("success!")
 else:
     print("FAIL. Please check your credentials.")
+    sys.exit(1)
 
 # Now parse the landing page to find the URL to the ePayslip application
 soup = BeautifulSoup(req.text, 'html.parser')
