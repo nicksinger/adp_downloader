@@ -30,3 +30,7 @@ Feel free to add issues in github or send pull requests.
 
 If this is too much hassle for you feel free to provide incomplete pull
 requests for consideration or create an issue with a code change proposal.
+
+## License
+
+This project is licensed under the MIT license, see LICENSE file for details.
