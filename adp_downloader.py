@@ -21,7 +21,7 @@ LOGIN_PARAMS = {"COMPANY": company, "USER": username, "PASSWORD": password, "TAR
 
 print("Trying to login… ", end="")
 req = s.post(LOGIN_ENDPOINT, data=LOGIN_PARAMS)
-if "JSESSIONID" in s.cookies:
+if "SMSESSION" in s.cookies:
     print("success!")
 else:
     print("FAIL. Please check your credentials.")
