@@ -13,14 +13,18 @@ company = input("Company Code: ")
 username = input("Username: ")
 password = getpass.getpass()
 
+ADPWORLD_URL = parse.urlparse("https://www.adpworld.de")
+
 print("Starting request session")
 s = requests.session()
 
-LOGIN_ENDPOINT = "https://www.adpworld.de/ipclogin/5/loginform.fcc"
-LOGIN_PARAMS = {"COMPANY": company, "USER": username, "PASSWORD": password, "TARGET": "-SM-https%3a%2f%2fwww%2eadpworld%2ede%2findex%2ehtml"}
+login_endpoint = parse.urlunparse((ADPWORLD_URL.scheme, ADPWORLD_URL.netloc, "/ipclogin/5/loginform.fcc", "", "", ""))
+index_quoted = parse.quote(parse.urlunparse((ADPWORLD_URL.scheme, ADPWORLD_URL.netloc, "/index.html", "", "", "")), safe="")
+target_param = "-SM-{}".format(index_quoted)
+login_params = {"COMPANY": company, "USER": username, "PASSWORD": password, "TARGET": target_param}
 
 print("Trying to login… ", end="")
-req = s.post(LOGIN_ENDPOINT, data=LOGIN_PARAMS)
+req = s.post(login_endpoint, data=login_params)
 if "SMSESSION" in s.cookies:
     print("success!")
 else:
