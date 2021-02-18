@@ -6,7 +6,6 @@ import configparser
 import requests
 import getpass
 import base64
-import pdb
 import sys
 import os
 import re
@@ -47,31 +46,48 @@ else:
     print("FAIL. Please check your credentials.")
     sys.exit(1)
 
-# Now parse the landing page to find the URL to the ePayslip application
+# Handle redirection after login
+soup = BeautifulSoup(req.text, 'html.parser')
+redirect = soup.find("meta", attrs={"http-equiv": "refresh"})
+meta_attrs = redirect["content"].split(";")
+target_attr = list(filter(lambda x: "URL" in x, meta_attrs))[0]
+target_path = target_attr.split("=")[1]
+target_url = parse.urlunparse((ADPWORLD_URL.scheme, ADPWORLD_URL.netloc, target_path, "", "", ""))
+
+# Request and parse the main dashboard to find the path to the ePayslip app
+req = s.get(target_url)
 soup = BeautifulSoup(req.text, 'html.parser')
 payslip_param = list(filter(lambda x: "ePayslip" in x.text,soup.find_all("a")))
 payslip_url = payslip_param[0].get("href")
-url = "{}{}".format(req.url, payslip_url)
+url = parse.urlunparse((ADPWORLD_URL.scheme, ADPWORLD_URL.netloc, payslip_url, "", "", ""))
 
 # Access the ePayslip app to read out a few parameters and the total amount of stored payslips
 req = s.get(url)
 soup = BeautifulSoup(req.text, 'html.parser')
 paginator_text = soup.find("table").find("span", {"class": "ui-paginator-current"}).text
 total_payslips = int(re.match(".*?([0-9]*)$", paginator_text).group(1))
-#links = list(filter(lambda x: "DocDownload" in x.get("href"), soup.find_all("a")))
 global epayslip_soup
 epayslip_soup = soup
 
-ADP_BASE_URL = parse.urlunparse(parse.urlparse(req.url)._replace(path=""))
-
 def paginator_xhr(first=0, rows=20):
     global epayslip_soup
-    metadata = list(epayslip_soup.find_all("input"))
-    target_elements = list(epayslip_soup.find("form").find_all("div"))
-    magic_application_id = list(filter(lambda x: "dataTable" in x.get("class"), target_elements))[0].get("id")
-    javax_faces_encodedURL = list(filter(lambda x: x.get("name") == "javax.faces.encodedURL", metadata))[0].get("value")
-    javax_faces_ViewState = list(filter(lambda x: x.get("name") == "javax.faces.ViewState", metadata))[0].get("value")
-    SUBMIT = list(filter(lambda x: "SUBMIT" in x.get("name"), metadata))[0].get("name")
+
+    form_inputs = list(epayslip_soup.find_all("input")) # All inputs inside the form. Some of them we need to submit
+
+    # Main form containing all payslip links
+    all_forms = list(epayslip_soup.find_all("form"))
+    epaylistform = list(filter(lambda x: "ePayListForm" in x.get("id", ""), all_forms))[0]
+
+    # All elements of the main form. One of them contains the datatable we're interested in
+    target_elements = list(epaylistform.find_all("div"))
+    magic_application_id = list(filter(lambda x: "ui-datatable" in x.get("class", ""), target_elements))[0].get("id")
+
+    # These properties need to be submitted for the paginator request to succeed
+    javax_faces_encodedURL = list(filter(lambda x: x.get("name") == "javax.faces.encodedURL", form_inputs))[0].get("value")
+    javax_faces_ViewState = list(filter(lambda x: x.get("name") == "javax.faces.ViewState", form_inputs))[0].get("value")
+    SUBMIT = list(filter(lambda x: "SUBMIT" in x.get("name"), form_inputs))[0].get("name")
+
+    # Now lets request the data from the paginator endpoint
     data = {
         "javax.faces.partial.ajax": True,
         "javax.faces.source": magic_application_id,
@@ -85,18 +101,20 @@ def paginator_xhr(first=0, rows=20):
         "javax.faces.encodedURL": javax_faces_encodedURL,
         SUBMIT: "1"
     }
-    xhr_link = parse.urljoin(ADP_BASE_URL, javax_faces_encodedURL)
-    req = s.post(xhr_link, data=data, headers={"Faces-Request": "partion/ajax"})
+    xhr_link = parse.urlunparse((ADPWORLD_URL.scheme, ADPWORLD_URL.netloc, javax_faces_encodedURL, "", "", ""))
+    req = s.post(xhr_link, data=data, headers={"Faces-Request": "partial/ajax"})
+
+    # The beauty of java on web requires us now to parse XML which contains HTML
     root = ET.fromstring(req.text)
-    changes = list(list(root)[0])
-    soup = BeautifulSoup(changes[0].text, "html.parser")
+    changes = root.find("./changes/update[@id='{}']".format(magic_application_id)) # Node containing HTML
+    soup = BeautifulSoup(changes.text, "html.parser")
     all_a = list(soup.find_all("a"))
-    all_page_links = list(map(lambda x: parse.urljoin(ADP_BASE_URL, x.get("href")), all_a))
-    new_ViewState = changes[1].text
+    all_page_links = list(map(lambda x: parse.urlunparse((ADPWORLD_URL.scheme, ADPWORLD_URL.netloc, x.get("href"), "", "", "")) , all_a))
+
+    new_ViewState = root.find("./changes/update[@id='javax.faces.ViewState']").text # Is maybe useful for the future
     return all_page_links
 
 def download_payslip(url):
-    #print("Downloading {}".format(url))
     req = s.get(url)
     if (req.headers.get("Content-Type") != "application/pdf"):
         print("{} is not a PDF, skipping download. Please check manually".format(url))
@@ -114,7 +132,7 @@ def download_payslip(url):
 print("Collecting all payslip URLs via XHR. We expect {} in total.".format(total_payslips))
 links = []
 while len(links) < total_payslips:
-    print("Fetching page 1. Payslip {}-{}… ".format(len(links), len(links)+99), end="")
+    print("Fetching payslip {}-{}… ".format(len(links), len(links)+99), end="")
     new_links = paginator_xhr(len(links), 99)
     links +=new_links
     print("Done.")
