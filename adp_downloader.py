@@ -2,17 +2,33 @@
 import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
 from urllib import parse
+import configparser
 import requests
 import getpass
+import base64
 import pdb
 import sys
 import os
 import re
 
-company = input("Company Code: ")
-username = input("Username: ")
-password = getpass.getpass()
+def get_credentials():
+  credentials = {}
+  config = configparser.ConfigParser()
+  config.read("config.ini")
+  try:
+    for key in ["company", "username", "passwordb64"]:
+      credentials[key] = config["credentials"][key]
+    encoded_pw = credentials.pop("passwordb64")
+    credentials["password"] = base64.b64decode(encoded_pw.encode("utf-8"))
+  except KeyError:
+    print("config.ini or required entry not found. Asking for credentials now")
+    credentials["credentials"]["company"] = input("Company Code: ")
+    credentials["credentials"]["username"] = input("Username: ")
+    credentials["credentials"]["password"] = getpass.getpass()
 
+  return credentials
+
+creds = get_credentials()
 ADPWORLD_URL = parse.urlparse("https://www.adpworld.de")
 
 print("Starting request session")
@@ -21,7 +37,7 @@ s = requests.session()
 login_endpoint = parse.urlunparse((ADPWORLD_URL.scheme, ADPWORLD_URL.netloc, "/ipclogin/5/loginform.fcc", "", "", ""))
 index_quoted = parse.quote(parse.urlunparse((ADPWORLD_URL.scheme, ADPWORLD_URL.netloc, "/index.html", "", "", "")), safe="")
 target_param = "-SM-{}".format(index_quoted)
-login_params = {"COMPANY": company, "USER": username, "PASSWORD": password, "TARGET": target_param}
+login_params = {"COMPANY": creds["company"], "USER": creds["username"], "PASSWORD": creds["password"], "TARGET": target_param}
 
 print("Trying to login… ", end="")
 req = s.post(login_endpoint, data=login_params)

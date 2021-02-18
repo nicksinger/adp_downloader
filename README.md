@@ -18,8 +18,20 @@ python adp_downloader.py
 
 # Configuration
 
-Currently the only way to statically configure your company/username/password is by editing the script itself.
-This might change in the future.
+Create a config.ini in the same directory. The file has the following format:
+
+```
+[credentials]
+company = yourcompanyname
+username = yourusername
+passwordb64 = base64_encoded_password
+```
+
+The base64 encoding is purely to ease handling of special characters in your password and **DOES NOT** serve any protection or encryption. Only store your credentials on a well secured system which you trust. Adjust permissions to the config file accordingly.
+To generate the base64 encoded password, you can use `echo -n "yourpassword" | base64`.
+
+Make sure the `-n` parameter is present so echo doesn't add a "\n" at
+the end of your password as it will break the login.
 
 ## Contribute
 
