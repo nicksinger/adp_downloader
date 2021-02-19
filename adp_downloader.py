@@ -3,12 +3,46 @@ import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
 from urllib import parse
 import configparser
+import datetime
 import requests
 import getpass
 import base64
 import sys
 import os
 import re
+
+class ADPDocument():
+  def __init__(self, document_element):
+    columns = document_element.find_all("td")
+    self.company_id = columns[1].text
+    self.employee_nr = columns[2].text
+    self.type = columns[3].text
+    self.long_name = columns[4].text
+    self.date = datetime.datetime.strptime(columns[5].text, '%d.%m.%Y')
+    self.pages = columns[6].text
+    self.size = columns[7].text
+    self.url_path = columns[8].find("a").get("href")
+
+  @property
+  def estimated_filename(self):
+    file_date = self.date.strftime('%Y%m%d')
+    return "{}_{}_{}_{}.pdf".format(file_date, self.company_id, self.employee_nr, self.type)
+
+  def download(self, adp_session):
+      file_url = parse.urlunparse((ADPWORLD_URL.scheme, ADPWORLD_URL.netloc, self.url_path, "", "", ""))
+      req = adp_session.get(file_url)
+      if (req.headers.get("Content-Type") != "application/pdf"):
+          print("{} is not a PDF, skipping download. Please check manually".format(url))
+          return
+      cd_header = req.headers.get("Content-Disposition")
+      pdf_filename = cd_header.split("\"")[1]
+      assert not "/" in pdf_filename
+      if os.path.isfile("downloads/" + pdf_filename):
+          print("{} already exists, skipping download…".format(pdf_filename))
+      else:
+          print("Downloading {}… ".format(pdf_filename), end="")
+          with open("downloads/" + pdf_filename, "wb") as fp:
+              fp.write(req.content)
 
 def get_credentials():
   credentials = {}
@@ -108,26 +142,12 @@ def paginator_xhr(first=0, rows=20):
     root = ET.fromstring(req.text)
     changes = root.find("./changes/update[@id='{}']".format(magic_application_id)) # Node containing HTML
     soup = BeautifulSoup(changes.text, "html.parser")
-    all_a = list(soup.find_all("a"))
-    all_page_links = list(map(lambda x: parse.urlunparse((ADPWORLD_URL.scheme, ADPWORLD_URL.netloc, x.get("href"), "", "", "")) , all_a))
+    page_documents = []
+    for row in soup.find_all("tr"):
+      page_documents.append(ADPDocument(row))
 
     new_ViewState = root.find("./changes/update[@id='javax.faces.ViewState']").text # Is maybe useful for the future
-    return all_page_links
-
-def download_payslip(url):
-    req = s.get(url)
-    if (req.headers.get("Content-Type") != "application/pdf"):
-        print("{} is not a PDF, skipping download. Please check manually".format(url))
-        return
-    cd_header = req.headers.get("Content-Disposition")
-    pdf_filename = cd_header.split("\"")[1]
-    assert not "/" in pdf_filename
-    if os.path.isfile("downloads/" + pdf_filename):
-        print("{} already exists, skipping download…".format(pdf_filename))
-    else:
-        print("Downloading {}… ".format(pdf_filename), end="")
-        with open("downloads/" + pdf_filename, "wb") as fp:
-            fp.write(req.content)
+    return page_documents
 
 print("Collecting all payslip URLs via XHR. We expect {} in total.".format(total_payslips))
 links = []
@@ -139,5 +159,5 @@ while len(links) < total_payslips:
 print("Successfuly fetched all payslip download URLs. Now downloading…")
 
 for link in links:
-    download_payslip(link)
+    link.download(s)
 print("All downloads succeeded. Done, exiting.")
