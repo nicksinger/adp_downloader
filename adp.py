@@ -5,11 +5,9 @@ from urllib import parse
 import configparser
 import datetime
 import requests
-import getpass
 import base64
-import sys
-import os
 import re
+import os
 
 class ADPDocument():
   def __init__(self, document_element):
@@ -102,14 +100,14 @@ class PayslipApplication():
   def init(self):
     if self.adpworld.logged_in:
       # Request and parse the main dashboard to find the path to the ePayslip app
-      req = adpworld.websession.get(self.adpworld.dashboard_url)
+      req = self.adpworld.websession.get(self.adpworld.dashboard_url)
       soup = BeautifulSoup(req.text, 'html.parser')
       payslip_param = list(filter(lambda x: "ePayslip" in x.text,soup.find_all("a")))
       payslip_url = payslip_param[0].get("href")
-      url = parse.urlunparse((adpworld.ADPWORLD_URL.scheme, adpworld.ADPWORLD_URL.netloc, payslip_url, "", "", ""))
+      url = parse.urlunparse((self.adpworld.ADPWORLD_URL.scheme, self.adpworld.ADPWORLD_URL.netloc, payslip_url, "", "", ""))
       
       # Access the ePayslip app to read out a few parameters and the total amount of stored payslips
-      req = adpworld.websession.get(url)
+      req = self.adpworld.websession.get(url)
       self.epayslip_soup = BeautifulSoup(req.text, 'html.parser')
     else:
       raise Exception("Not logged in. Call ADPWorld.login() first.")
@@ -163,26 +161,3 @@ class PayslipApplication():
   
     new_ViewState = root.find("./changes/update[@id='javax.faces.ViewState']").text # Is maybe useful for the future
     return page_documents
-
-
-if __name__ == "__main__":
-    adpworld = ADPWorld()
-    if adpworld.login():
-      print("Login succeeded")
-    else:
-      print("Login failed… Please check your credentials")
-      sys.exit(1)
-    payslips = PayslipApplication(adpworld)
-
-    print("Collecting all payslip URLs via XHR. We expect {} in total.".format(payslips.total_payslips))
-    links = []
-    while len(links) < payslips.total_payslips:
-        print("Fetching payslip {}-{}… ".format(len(links), len(links)+99), end="")
-        new_links = payslips.paginator_xhr(len(links), 99)
-        links +=new_links
-        print("Done.")
-    print("Successfuly fetched all payslip download URLs. Now downloading…")
-
-    for link in links:
-        link.download(adpworld)
-    print("All downloads succeeded. Done, exiting.")
