@@ -7,10 +7,9 @@ import datetime
 import requests
 import base64
 import re
-import os
 
 class ADPDocument():
-  def __init__(self, document_element):
+  def __init__(self, adpworld, document_element):
     columns = document_element.find_all("td")
     self.company_id = columns[1].text
     self.employee_nr = columns[2].text
@@ -19,28 +18,13 @@ class ADPDocument():
     self.date = datetime.datetime.strptime(columns[5].text, '%d.%m.%Y')
     self.pages = columns[6].text
     self.size = columns[7].text
-    self.url_path = columns[8].find("a").get("href")
+    url_path = columns[8].find("a").get("href")
+    self.url = parse.urlunparse((adpworld.ADPWORLD_URL.scheme, adpworld.ADPWORLD_URL.netloc, url_path, "", "", ""))
 
   @property
   def estimated_filename(self):
     file_date = self.date.strftime('%Y%m%d')
     return "{}_{}_{}_{}.pdf".format(file_date, self.company_id, self.employee_nr, self.type)
-
-  def download(self, adpworld):
-      file_url = parse.urlunparse((adpworld.ADPWORLD_URL.scheme, adpworld.ADPWORLD_URL.netloc, self.url_path, "", "", ""))
-      req = adpworld.websession.get(file_url)
-      if (req.headers.get("Content-Type") != "application/pdf"):
-          print("{} is not a PDF, skipping download. Please check manually".format(url))
-          return
-      cd_header = req.headers.get("Content-Disposition")
-      pdf_filename = cd_header.split("\"")[1]
-      assert not "/" in pdf_filename
-      if os.path.isfile("downloads/" + pdf_filename):
-          print("{} already exists, skipping download…".format(pdf_filename))
-      else:
-          print("Downloading {}… ".format(pdf_filename), end="")
-          with open("downloads/" + pdf_filename, "wb") as fp:
-              fp.write(req.content)
 
 
 class ADPWorld():
@@ -92,6 +76,7 @@ class ADPWorld():
     self.dashboard_url = parse.urlunparse((self.ADPWORLD_URL.scheme, self.ADPWORLD_URL.netloc, target_path, "", "", ""))
     return True
 
+
 class PayslipApplication():
   def __init__(self, adpworld):
     self.adpworld = adpworld
@@ -111,6 +96,15 @@ class PayslipApplication():
       self.epayslip_soup = BeautifulSoup(req.text, 'html.parser')
     else:
       raise Exception("Not logged in. Call ADPWorld.login() first.")
+
+  @property
+  def documents(self):
+    all_documents = []
+    # Iterate over all pages until we have all documents collected
+    while len(all_documents) < self.total_payslips:
+      new_documents = self.paginator_xhr(len(all_documents), 99) # 99 documents seems to be the maximum we can request at once
+      all_documents += new_documents
+    return all_documents
 
   @property
   def total_payslips(self):
@@ -157,7 +151,7 @@ class PayslipApplication():
     soup = BeautifulSoup(changes.text, "html.parser")
     page_documents = []
     for row in soup.find_all("tr"):
-      page_documents.append(ADPDocument(row))
+      page_documents.append(ADPDocument(self.adpworld, row))
   
     new_ViewState = root.find("./changes/update[@id='javax.faces.ViewState']").text # Is maybe useful for the future
     return page_documents
