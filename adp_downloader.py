@@ -170,7 +170,7 @@ if __name__ == "__main__":
     if adpworld.login():
       print("Login succeeded")
     else:
-      print("Login failed")
+      print("Login failed… Please check your credentials")
       sys.exit(1)
     payslips = PayslipApplication(adpworld)
 
