@@ -62,11 +62,11 @@ class ADPWorld():
     index_quoted = parse.quote(parse.urlunparse((self.ADPWORLD_URL.scheme, self.ADPWORLD_URL.netloc, "/index.html", "", "", "")), safe="")
     target_param = "-SM-{}".format(index_quoted)
     login_params = {"COMPANY": self.credentials["company"], "USER": self.credentials["username"], "PASSWORD": self.credentials["password"], "TARGET": target_param}
-    
+
     req = self.websession.post(login_endpoint, data=login_params, allow_redirects=False)
     if self.logged_in == False:
       return False
-    
+
     redirect_path = req.headers.get("Location")
     self.dashboard_url = parse.urlunparse((self.ADPWORLD_URL.scheme, self.ADPWORLD_URL.netloc, redirect_path, "", "", ""))
     return True
@@ -85,7 +85,7 @@ class PayslipApplication():
       payslip_param = list(filter(lambda x: "ePayslip" in x.text,soup.find_all("a")))
       payslip_url = payslip_param[0].get("href")
       url = parse.urlunparse((self.adpworld.ADPWORLD_URL.scheme, self.adpworld.ADPWORLD_URL.netloc, payslip_url, "", "", ""))
-      
+
       # Access the ePayslip app to read out a few parameters and the total amount of stored payslips
       req = self.adpworld.websession.get(url)
       self.epayslip_soup = BeautifulSoup(req.text, 'html.parser')
@@ -109,20 +109,20 @@ class PayslipApplication():
 
   def paginator_xhr(self, first=0, rows=20):
     form_inputs = list(self.epayslip_soup.find_all("input")) # All inputs inside the form. Some of them we need to submit
-  
+
     # Main form containing all payslip links
     all_forms = list(self.epayslip_soup.find_all("form"))
     epaylistform = list(filter(lambda x: "ePayListForm" in x.get("id", ""), all_forms))[0]
-  
+
     # All elements of the main form. One of them contains the datatable we're interested in
     target_elements = list(epaylistform.find_all("div"))
     magic_application_id = list(filter(lambda x: "ui-datatable" in x.get("class", ""), target_elements))[0].get("id")
-  
+
     # These properties need to be submitted for the paginator request to succeed
     javax_faces_encodedURL = list(filter(lambda x: x.get("name") == "javax.faces.encodedURL", form_inputs))[0].get("value")
     javax_faces_ViewState = list(filter(lambda x: x.get("name") == "javax.faces.ViewState", form_inputs))[0].get("value")
     SUBMIT = list(filter(lambda x: "SUBMIT" in x.get("name"), form_inputs))[0].get("name")
-  
+
     # Now lets request the data from the paginator endpoint
     data = {
         "javax.faces.partial.ajax": True,
@@ -139,7 +139,7 @@ class PayslipApplication():
     }
     xhr_link = parse.urlunparse((self.adpworld.ADPWORLD_URL.scheme, self.adpworld.ADPWORLD_URL.netloc, javax_faces_encodedURL, "", "", ""))
     req = self.adpworld.websession.post(xhr_link, data=data, headers={"Faces-Request": "partial/ajax"})
-  
+
     # The beauty of java on web requires us now to parse XML which contains HTML
     root = ET.fromstring(req.text)
     changes = root.find("./changes/update[@id='{}']".format(magic_application_id)) # Node containing HTML
@@ -147,6 +147,6 @@ class PayslipApplication():
     page_documents = []
     for row in soup.find_all("tr"):
       page_documents.append(ADPDocument(self.adpworld, row))
-  
+
     new_ViewState = root.find("./changes/update[@id='javax.faces.ViewState']").text # Is maybe useful for the future
     return page_documents
