@@ -63,17 +63,12 @@ class ADPWorld():
     target_param = "-SM-{}".format(index_quoted)
     login_params = {"COMPANY": self.credentials["company"], "USER": self.credentials["username"], "PASSWORD": self.credentials["password"], "TARGET": target_param}
     
-    req = self.websession.post(login_endpoint, data=login_params)
+    req = self.websession.post(login_endpoint, data=login_params, allow_redirects=False)
     if self.logged_in == False:
       return False
     
-    # Handle redirection after login
-    soup = BeautifulSoup(req.text, 'html.parser')
-    redirect = soup.find("meta", attrs={"http-equiv": "refresh"})
-    meta_attrs = redirect["content"].split(";")
-    target_attr = list(filter(lambda x: "URL" in x, meta_attrs))[0] # Target URL in the HTML meta tag
-    target_path = target_attr.split("=")[1]
-    self.dashboard_url = parse.urlunparse((self.ADPWORLD_URL.scheme, self.ADPWORLD_URL.netloc, target_path, "", "", ""))
+    redirect_path = req.headers.get("Location")
+    self.dashboard_url = parse.urlunparse((self.ADPWORLD_URL.scheme, self.ADPWORLD_URL.netloc, redirect_path, "", "", ""))
     return True
 
 
