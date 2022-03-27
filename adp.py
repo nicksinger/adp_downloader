@@ -37,10 +37,11 @@ class ADPWorld():
   @property
   def logged_in(self):
     # If we have a session cookie we can assume the login worked
-    if "SMSESSION" in self.websession.cookies:
-      return True
-    else:
-      return False # Login failed
+    try:
+      return len(self.websession.cookies["EMEASMSESSION"]) > 500 # pretty ugly but seems to work for now
+    except KeyError:
+      pass
+    return False
 
   def get_credentials(self):
     credentials = {}
