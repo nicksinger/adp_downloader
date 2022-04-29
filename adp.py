@@ -81,7 +81,8 @@ class PayslipApplication():
   def init(self):
     if self.adpworld.logged_in:
       # Request and parse the main dashboard to find the path to the ePayslip app
-      req = self.adpworld.websession.get(self.adpworld.dashboard_url)
+      for _ in range(2): # The first request ends up in a redirect to exactly the same page so loading it two times sets all expected cookies and stuff
+        req = self.adpworld.websession.get(self.adpworld.dashboard_url)
       soup = BeautifulSoup(req.text, 'html.parser')
       payslip_param = list(filter(lambda x: "ePayslip" in x.text,soup.find_all("a")))
       payslip_url = payslip_param[0].get("href")
