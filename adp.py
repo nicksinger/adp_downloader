@@ -3,10 +3,13 @@ import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
 from urllib import parse
 import configparser
+import http.client
 import datetime
 import requests
 import base64
 import re
+
+http.client._MAXHEADERS = 1000
 
 class ADPDocument():
   def __init__(self, adpworld, document_element):
@@ -29,8 +32,22 @@ class ADPDocument():
 
 class ADPWorld():
   def __init__(self):
-    self.ADPWORLD_URL = parse.urlparse("https://www.adpworld.de") # All URLs are based on this
+    self.ADPWORLD_URL = parse.urlparse("https://adpworld.adp.com") # All URLs are based on this
     self.websession = requests.session()
+
+    # open the main entry point to obtain some parameters needed later on to interact with the api
+    init_endpoint = parse.urlunparse((self.ADPWORLD_URL.scheme, self.ADPWORLD_URL.netloc, "", "", "", ""))
+    init_req = self.websession.get(init_endpoint)
+    init_url = parse.urlparse(init_req.url)
+    init_qs = parse.parse_qs(init_url.query)
+    self.appid = init_qs["APPID"][0]
+    self.productid = init_qs["productId"][0]
+    self.api_endpoint = parse.urlparse(parse.urlunparse((init_url.scheme, init_url.netloc, "", "", "", "")))
+
+    # not sure if needed but the webui does the same
+    csrf_url = parse.urlunparse((self.api_endpoint.scheme, self.api_endpoint.netloc, "csrf", "", "", ""))
+    csrf_req = self.websession.get(csrf_url)
+
     self.credentials = self.get_credentials()
     pass
 
@@ -59,17 +76,35 @@ class ADPWorld():
     return credentials
 
   def login(self):
-    login_endpoint = parse.urlunparse((self.ADPWORLD_URL.scheme, self.ADPWORLD_URL.netloc, "/ipclogin/5/loginform.fcc", "", "", ""))
-    index_quoted = parse.quote(parse.urlunparse((self.ADPWORLD_URL.scheme, self.ADPWORLD_URL.netloc, "/index.html", "", "", "")), safe="")
-    target_param = "-SM-{}".format(index_quoted)
-    login_params = {"COMPANY": self.credentials["company"], "USER": self.credentials["username"], "PASSWORD": self.credentials["password"], "TARGET": target_param}
+    start_endpoint = parse.urlunparse((self.api_endpoint.scheme, self.api_endpoint.netloc, "/api/sign-in-service/v1/sign-in.start", "", "", ""))
+    req = self.websession.post(start_endpoint, json={"organizationId": "", "productId": self.productid}, headers={"X-XSRF-TOKEN": self.websession.cookies["XSRF-TOKEN"]})
+    sign_in_start_data = req.json()
 
-    req = self.websession.post(login_endpoint, data=login_params, allow_redirects=False)
+    identify_endpoint = parse.urlunparse((self.api_endpoint.scheme, self.api_endpoint.netloc, "/api/sign-in-service/v1/sign-in.account.identify", "", "", ""))
+    req = self.websession.post(identify_endpoint, json={"identifier": "{}_{}".format(self.credentials["company"], self.credentials["username"]), "session": sign_in_start_data["session"]}, headers={"X-XSRF-TOKEN": self.websession.cookies["XSRF-TOKEN"]})
+    sign_in_identify_data = req.json()
+
+    login_data = {
+        "response": {
+            "locale": "de_DE",
+            "password": self.credentials["password"].decode("utf8"),
+            "type": "PASSWORD_VERIFICATION_RESPONSE"
+        },
+        "session": sign_in_identify_data["session"]
+    }
+
+    login_endpoint = parse.urlunparse((self.api_endpoint.scheme, self.api_endpoint.netloc, "/api/sign-in-service/v1/sign-in.challenge.respond", "", "", ""))
+    req = self.websession.post(login_endpoint, json=login_data, headers={"X-XSRF-TOKEN": self.websession.cookies["XSRF-TOKEN"]})
+    sign_in_response_data = req.json()
     if self.logged_in == False:
       return False
 
-    redirect_path = req.headers.get("Location")
-    self.dashboard_url = parse.urlunparse((self.ADPWORLD_URL.scheme, self.ADPWORLD_URL.netloc, redirect_path, "", "", ""))
+    redirect_req = self.websession.get(sign_in_response_data["result"]["redirectUrl"], allow_redirects=False)
+    redirect_url = redirect_req.headers.get("Location")
+    req = self.websession.get(redirect_url)
+    soup = BeautifulSoup(req.text, 'html.parser')
+    target_path = list(filter(lambda x: "URL=" in x, soup.find("meta", {"http-equiv": "refresh"})["content"].split(";")))[0].split("=")[1]
+    self.dashboard_url = parse.urlunparse((self.ADPWORLD_URL.scheme, self.ADPWORLD_URL.netloc, target_path, "", "", ""))
     return True
 
 
