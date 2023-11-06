@@ -19,7 +19,7 @@ Alternatively and for development you can get all development requirements
 with
 
 ```
-pip install -r requirements-dev.txt
+pip install -r requirements.txt
 ```
 
 # Configuration
