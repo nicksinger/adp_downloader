@@ -33,6 +33,10 @@ username = yourusername
 passwordb64 = base64_encoded_password
 ```
 
+where "yourcompanyname" and "yourusername" are the separate company name and
+user name without the "_" character, for example company "sus" and username
+"johdoe".
+
 The base64 encoding is purely to ease handling of special characters in your password and **DOES NOT** serve any protection or encryption. Only store your credentials on a well secured system which you trust. Adjust permissions to the config file accordingly.
 To generate the base64 encoded password, you can use `echo -n "yourpassword" | base64`.
 
