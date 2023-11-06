@@ -15,6 +15,13 @@ mkdir downloads
 
 **Note** for openSUSE users: Make sure you've installed `python3-requests` and `python3-beautifulsoup4`.
 
+Alternatively and for development you can get all development requirements
+with
+
+```
+pip install -r requirements-dev.txt
+```
+
 # Configuration
 
 Create a config.ini in the same directory. The file has the following format:
