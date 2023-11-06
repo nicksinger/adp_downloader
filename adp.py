@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 import xml.etree.ElementTree as ET
-from bs4 import BeautifulSoup
 from urllib import parse
 import configparser
 import http.client
 import datetime
-import requests
 import base64
+import getpass
 import re
+import requests
+
+from bs4 import BeautifulSoup
 
 http.client._MAXHEADERS = 1000
 
@@ -66,10 +68,9 @@ class ADPWorld:
         csrf_url = parse.urlunparse(
             (self.api_endpoint.scheme, self.api_endpoint.netloc, "csrf", "", "", "")
         )
-        csrf_req = self.websession.get(csrf_url)
+        self.websession.get(csrf_url)
 
         self.credentials = self.get_credentials()
-        pass
 
     @property
     def logged_in(self):
@@ -162,7 +163,7 @@ class ADPWorld:
             headers={"X-XSRF-TOKEN": self.websession.cookies["XSRF-TOKEN"]},
         )
         sign_in_response_data = req.json()
-        if self.logged_in == False:
+        if not self.logged_in:
             return False
 
         redirect_req = self.websession.get(

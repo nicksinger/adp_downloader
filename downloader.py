@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-from adp import ADPWorld, PayslipApplication
 import datetime
-import getpass
 import sqlite3
-import base64
 import sys
-import os
+
+from adp import ADPWorld, PayslipApplication
 
 
 class Downloader:
@@ -14,23 +12,22 @@ class Downloader:
         self.db = DB()
 
     def download(self, adpdocument):
-        if not self.db.document_present(adpdocument):
-            self.db.persist(adpdocument)
-            req = self.adpworld.websession.get(adpdocument.url)
-            if req.headers.get("Content-Type") != "application/pdf":
-                print(
-                    "{} is not a PDF, skipping download. Please check manually".format(
-                        url
-                    )
-                )
-            cd_header = req.headers.get("Content-Disposition")
-            pdf_filename = cd_header.split('"')[1]
-            assert not "/" in pdf_filename
-            with open("downloads/" + pdf_filename, "wb") as fp:
-                fp.write(req.content)
-            return True
-        else:
+        if self.db.document_present(adpdocument):
             return False
+        self.db.persist(adpdocument)
+        req = self.adpworld.websession.get(adpdocument.url)
+        if req.headers.get("Content-Type") != "application/pdf":
+            print(
+                "{} is not a PDF, skipping download. Please check manually".format(
+                    adpdocument.url
+                )
+            )
+        cd_header = req.headers.get("Content-Disposition")
+        pdf_filename = cd_header.split('"')[1]
+        assert "/" not in pdf_filename
+        with open("downloads/" + pdf_filename, "wb") as fp:
+            fp.write(req.content)
+        return True
 
 
 class DB:
@@ -94,7 +91,11 @@ class DB:
             type_id = c.fetchone()[0]
             return (company_id, employee_id, type_id)
         except TypeError:
-            raise Exception("Indices not present")
+
+            class TableIndexError(Exception):
+                pass
+
+            raise TableIndexError("Indices not present")
 
     def document_present(self, adpdocument):
         c = self.connection.cursor()
@@ -111,10 +112,7 @@ class DB:
                     adpdocument.date.strftime("%Y-%m-%d"),
                 ),
             )
-            if len(result.fetchall()) > 0:
-                return True
-            else:
-                return False
+            return len(result.fetchall()) > 0
         except Exception:
             return False
 
