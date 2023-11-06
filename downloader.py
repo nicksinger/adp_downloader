@@ -2,6 +2,7 @@
 import datetime
 import sqlite3
 import sys
+from pathlib import Path
 
 from adp import ADPWorld, PayslipApplication
 
@@ -25,6 +26,7 @@ class Downloader:
         cd_header = req.headers.get("Content-Disposition")
         pdf_filename = cd_header.split('"')[1]
         assert "/" not in pdf_filename
+        Path("downloads").mkdir(exist_ok=True)
         with open("downloads/" + pdf_filename, "wb") as fp:
             fp.write(req.content)
         return True
