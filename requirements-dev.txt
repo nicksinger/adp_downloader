@@ -1,2 +1,4 @@
 beautifulsoup4
 requests
+flake8-black
+flake8-pylint
