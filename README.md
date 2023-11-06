@@ -3,7 +3,7 @@ and supports the download of all availible documents. Just configure you company
 find all downloads conveniently placed on you HDD.
 
 **Note:** this script was developed with and for accounts [@SUSE](https://github.com/SUSE). If you do not work for SUSE be warned
-that it might break and does not work at all. Feel free to try it anyway and report you findings as Issue :+1:.
+that it might break and does not work at all. Feel free to try it anyway and report your findings as github issues :+1:.
 
 # Installation
 
