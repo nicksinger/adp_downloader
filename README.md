@@ -3,7 +3,7 @@ and supports the download of all availible documents. Just configure you company
 find all downloads conveniently placed on you HDD.
 
 **Note:** this script was developed with and for accounts [@SUSE](https://github.com/SUSE). If you do not work for SUSE be warned
-that it might break and does not work at all. Feel free to try it anyway and report you findings as Issue :+1:.
+that it might break and does not work at all. Feel free to try it anyway and report your findings as github issues :+1:.
 
 # Installation
 
@@ -15,6 +15,13 @@ mkdir downloads
 
 **Note** for openSUSE users: Make sure you've installed `python3-requests` and `python3-beautifulsoup4`.
 
+Alternatively and for development you can get all development requirements
+with
+
+```
+pip install -r requirements.txt
+```
+
 # Configuration
 
 Create a config.ini in the same directory. The file has the following format:
@@ -25,6 +32,10 @@ company = yourcompanyname
 username = yourusername
 passwordb64 = base64_encoded_password
 ```
+
+where "yourcompanyname" and "yourusername" are the separate company name and
+user name without the "_" character, for example company "sus" and username
+"johdoe".
 
 The base64 encoding is purely to ease handling of special characters in your password and **DOES NOT** serve any protection or encryption. Only store your credentials on a well secured system which you trust. Adjust permissions to the config file accordingly.
 To generate the base64 encoded password, you can use `echo -n "yourpassword" | base64`.
@@ -51,3 +62,13 @@ Feel free to add issues in github or send pull requests.
 
 If this is too much hassle for you feel free to provide incomplete pull
 requests for consideration or create an issue with a code change proposal.
+
+### Local testing
+
+There are currently some limited automatic tests available. Call
+
+```
+make test
+```
+
+to execute all tests.
