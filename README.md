@@ -30,9 +30,9 @@ pip install -r requirements.txt
 
 Use your browsers developer tools or an extension like
 [cookies.txt](https://addons.mozilla.org/de/firefox/addon/cookies-txt/) to
-extract the cookie which will be downloaded as cookies.txt
+extract the cookie which will be downloaded as `cookies.txt`
 
-Create a config.ini in the same directory (NOT the newly created downloads
+Create a config.ini in the same directory (NOT the newly created `downloads`
 directory!). The file has to have the following format:
 
 ```
@@ -42,9 +42,9 @@ cookie = your_emeasmsession_cookie
 
 where "your_emeasmsession_cookie" corresponds to the `EMEASMSESSION`-cookie
 set by the web application after you logged in. This is a very long string in
-the downloaded file cookies.txt next to `EMEASMSESSION`.
+the downloaded file `cookies.txt` next to `EMEASMSESSION`.
 
-**Note** Both config.ini and cookies.txt need to be in the same directory as
+**Note** Both `config.ini` and `cookies.txt` need to be in the same directory as
 the script downloader.py.
 
 
@@ -58,7 +58,7 @@ download newly added files to your disk. This allows you to easily run the
 downloader in a cron job.
 
 **Note** If you are asked for your credentials to log in, then the script
-didn't find the config.ini or cookies.txt.
+didn't find the `config.ini` or `cookies.txt`.
 
 
 ## Contribute
