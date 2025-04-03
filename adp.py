@@ -6,6 +6,7 @@ import http.client
 import datetime
 import base64
 import getpass
+import json
 import re
 import requests
 
@@ -50,35 +51,13 @@ class ADPWorld:
             "https://adpworld.adp.com"
         )  # All URLs are based on this
         self.websession = requests.session()
-
-        # open the main entry point to obtain some parameters needed later on to interact with the api
-        init_endpoint = parse.urlunparse(
-            (self.ADPWORLD_URL.scheme, self.ADPWORLD_URL.netloc, "", "", "", "")
-        )
-        init_req = self.websession.get(init_endpoint)
-        init_url = parse.urlparse(init_req.url)
-        init_qs = parse.parse_qs(init_url.query)
-        self.appid = init_qs["APPID"][0]
-        self.productid = init_qs["productId"][0]
-        self.api_endpoint = parse.urlparse(
-            parse.urlunparse((init_url.scheme, init_url.netloc, "", "", "", ""))
-        )
-
-        # not sure if needed but the webui does the same
-        csrf_url = parse.urlunparse(
-            (self.api_endpoint.scheme, self.api_endpoint.netloc, "csrf", "", "", "")
-        )
-        self.websession.get(csrf_url)
-
         self.credentials = self.get_credentials()
 
     @property
     def logged_in(self):
         # If we have a session cookie we can assume the login worked
         try:
-            return (
-                len(self.websession.cookies["EMEASMSESSION"]) > 500
-            )  # pretty ugly but seems to work for now
+            return ("EMEASMSESSION" in self.websession.cookies)  # pretty ugly but seems to work for now
         except KeyError:
             pass
         return False
@@ -93,103 +72,41 @@ class ADPWorld:
             encoded_pw = credentials.pop("passwordb64")
             credentials["password"] = base64.b64decode(encoded_pw.encode("utf-8"))
         except KeyError:  # If the credentials are not complete in the config, ask the user interactively
-            credentials["credentials"]["company"] = input("Company Code: ")
-            credentials["credentials"]["username"] = input("Username: ")
-            credentials["credentials"]["password"] = getpass.getpass()
+            pass
+
+        try:  # Try to read and parse the config file
+            credentials["cookie"] = config["credentials"]["cookie"]
+        except KeyError:  # If the credentials are not complete in the config, ask the user interactively
+            pass
+
+        if len(credentials) <= 0:
+            credentials["company"] = input("Company Code: ")
+            credentials["username"] = input("Username: ")
+            credentials["password"] = getpass.getpass()
         return credentials
 
-    def login(self):
-        start_endpoint = parse.urlunparse(
-            (
-                self.api_endpoint.scheme,
-                self.api_endpoint.netloc,
-                "/api/sign-in-service/v1/sign-in.start",
-                "",
-                "",
-                "",
-            )
-        )
-        req = self.websession.post(
-            start_endpoint,
-            json={"organizationId": "", "productId": self.productid},
-            headers={"X-XSRF-TOKEN": self.websession.cookies["XSRF-TOKEN"]},
-        )
-        sign_in_start_data = req.json()
 
-        identify_endpoint = parse.urlunparse(
-            (
-                self.api_endpoint.scheme,
-                self.api_endpoint.netloc,
-                "/api/sign-in-service/v1/sign-in.account.identify",
-                "",
-                "",
-                "",
-            )
-        )
-        req = self.websession.post(
-            identify_endpoint,
-            json={
-                "identifier": "{}_{}".format(
-                    self.credentials["company"], self.credentials["username"]
-                ),
-                "session": sign_in_start_data["session"],
-            },
-            headers={"X-XSRF-TOKEN": self.websession.cookies["XSRF-TOKEN"]},
-        )
-        sign_in_identify_data = req.json()
-
-        login_data = {
-            "response": {
-                "locale": "de_DE",
-                "password": self.credentials["password"].decode("utf8"),
-                "type": "PASSWORD_VERIFICATION_RESPONSE",
-            },
-            "session": sign_in_identify_data["session"],
-        }
-
+    def cookie_login(self):
+        self.websession.cookies.set("EMEASMSESSION", self.credentials["cookie"])
         login_endpoint = parse.urlunparse(
-            (
-                self.api_endpoint.scheme,
-                self.api_endpoint.netloc,
-                "/api/sign-in-service/v1/sign-in.challenge.respond",
-                "",
-                "",
-                "",
-            )
-        )
-        req = self.websession.post(
-            login_endpoint,
-            json=login_data,
-            headers={"X-XSRF-TOKEN": self.websession.cookies["XSRF-TOKEN"]},
-        )
-        sign_in_response_data = req.json()
-        if not self.logged_in:
-            return False
-
-        redirect_req = self.websession.get(
-            sign_in_response_data["result"]["redirectUrl"], allow_redirects=False
-        )
-        redirect_url = redirect_req.headers.get("Location")
-        req = self.websession.get(redirect_url)
-        soup = BeautifulSoup(req.text, "html.parser")
-        target_path = list(
-            filter(
-                lambda x: "URL=" in x,
-                soup.find("meta", {"http-equiv": "refresh"})["content"].split(";"),
-            )
-        )[0].split("=")[1]
-        self.dashboard_url = parse.urlunparse(
             (
                 self.ADPWORLD_URL.scheme,
                 self.ADPWORLD_URL.netloc,
-                target_path,
+                "/",
                 "",
                 "",
                 "",
             )
         )
+        redirect_req = self.websession.get(login_endpoint)
+        self.dashboard_url = login_endpoint
         return True
 
+    def login(self):
+        if "cookie" in self.credentials:
+            self.cookie_login()
+            return True
+        return False
 
 class PayslipApplication:
     def __init__(self, adpworld):
@@ -207,20 +124,19 @@ class PayslipApplication:
             payslip_param = list(
                 filter(lambda x: "ePayslip" in x.text, soup.find_all("a"))
             )
-            payslip_url = payslip_param[0].get("href")
-            url = parse.urlunparse(
-                (
-                    self.adpworld.ADPWORLD_URL.scheme,
-                    self.adpworld.ADPWORLD_URL.netloc,
-                    payslip_url,
-                    "",
-                    "",
-                    "",
-                )
-            )
+            param = payslip_param[0].get("onclick")
+            param_args = param.split(";")[0].split(".")[1].split("(")[1].split(")")[0].split(",", 1)
+            json_arg = param_args[1].replace("\\", "").replace("'", "\"")
+            form_name = param_args[0].replace("'", "").replace("\"", "")
+            parsed_args = json.loads(json_arg)
+            payslip_args = parsed_args
+            form_inputs = list(soup.find("form", {"id": form_name}).find_all("input"))
+            for form_input in form_inputs:
+              payslip_args.update({form_input.get("name"): form_input.get("value")})
+            url = self.adpworld.dashboard_url + "ADPWorld/faces/portal/index.xhtml"
 
             # Access the ePayslip app to read out a few parameters and the total amount of stored payslips
-            req = self.adpworld.websession.get(url)
+            req = self.adpworld.websession.post(url, params=payslip_args)
             self.epayslip_soup = BeautifulSoup(req.text, "html.parser")
         else:
             raise Exception("Not logged in. Call ADPWorld.login() first.")
@@ -231,15 +147,15 @@ class PayslipApplication:
         # Iterate over all pages until we have all documents collected
         while len(all_documents) < self.total_payslips:
             new_documents = self.paginator_xhr(
-                len(all_documents), 99
-            )  # 99 documents seems to be the maximum we can request at once
+                len(all_documents), 50
+            )  # 50 documents seems to be the maximum we can request at once
             all_documents += new_documents
         return all_documents
 
     @property
     def total_payslips(self):
         paginator_text = (
-            self.epayslip_soup.find("table")
+            self.epayslip_soup
             .find("span", {"class": "ui-paginator-current"})
             .text
         )
@@ -263,36 +179,28 @@ class PayslipApplication:
             filter(lambda x: "ui-datatable" in x.get("class", ""), target_elements)
         )[0].get("id")
 
-        # These properties need to be submitted for the paginator request to succeed
-        javax_faces_encodedURL = list(
-            filter(lambda x: x.get("name") == "javax.faces.encodedURL", form_inputs)
-        )[0].get("value")
-        javax_faces_ViewState = list(
-            filter(lambda x: x.get("name") == "javax.faces.ViewState", form_inputs)
-        )[0].get("value")
-        SUBMIT = list(filter(lambda x: "SUBMIT" in x.get("name"), form_inputs))[0].get(
-            "name"
-        )
+        # Extract the viewstate of the jakarta application
+        viewstate_element = epaylistform.find_all("input", {"name": "jakarta.faces.ViewState"})[0]
+        viewstate = {viewstate_element.get("name"): viewstate_element.get("value")}
 
-        # Now lets request the data from the paginator endpoint
+        # Now lets assemble and request the data from the paginator endpoint
         data = {
-            "javax.faces.partial.ajax": True,
-            "javax.faces.source": magic_application_id,
-            "javax.faces.partial.execute": magic_application_id,
-            "javax.faces.partial.render": magic_application_id,
+            "jakarta.faces.partial.ajax": True,
+            "jakarta.faces.source": magic_application_id,
+            "jakarta.faces.partial.execute": magic_application_id,
+            "jakarta.faces.partial.render": magic_application_id,
             magic_application_id: magic_application_id,
             magic_application_id + "_pagination": True,
             magic_application_id + "_first": first,
             magic_application_id + "_rows": rows,
             magic_application_id + "_encodeFeature": True,
-            "javax.faces.encodedURL": javax_faces_encodedURL,
-            SUBMIT: "1",
         }
+        data.update(viewstate)
         xhr_link = parse.urlunparse(
             (
                 self.adpworld.ADPWORLD_URL.scheme,
                 self.adpworld.ADPWORLD_URL.netloc,
-                javax_faces_encodedURL,
+                "/ADPWorld/faces/apps/ePayslip/ePayslipList.xhtml",
                 "",
                 "",
                 "",
@@ -312,7 +220,4 @@ class PayslipApplication:
         for row in soup.find_all("tr"):
             page_documents.append(ADPDocument(self.adpworld, row))
 
-        new_ViewState = root.find(
-            "./changes/update[@id='javax.faces.ViewState']"
-        ).text  # Is maybe useful for the future
         return page_documents
