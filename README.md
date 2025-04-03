@@ -28,20 +28,11 @@ Create a config.ini in the same directory. The file has the following format:
 
 ```
 [credentials]
-company = yourcompanyname
-username = yourusername
-passwordb64 = base64_encoded_password
+cookie = your_emeasmsession_cookie
 ```
 
-where "yourcompanyname" and "yourusername" are the separate company name and
-user name without the "_" character, for example company "sus" and username
-"johdoe".
-
-The base64 encoding is purely to ease handling of special characters in your password and **DOES NOT** serve any protection or encryption. Only store your credentials on a well secured system which you trust. Adjust permissions to the config file accordingly.
-To generate the base64 encoded password, you can use `echo -n "yourpassword" | base64`.
-
-Make sure the `-n` parameter is present so echo doesn't add a "\n" at
-the end of your password as it will break the login.
+where "your_emeasmsession_cookie" corresponds to the `EMEASMSESSION`-cookie set by the web application after you logged in.
+You can use your browsers developer tools or an extension like [cookies.txt](https://addons.mozilla.org/de/firefox/addon/cookies-txt/) to extract it.
 
 # Execution
 
