@@ -57,7 +57,9 @@ class ADPWorld:
     def logged_in(self):
         # If we have a session cookie we can assume the login worked
         try:
-            return ("EMEASMSESSION" in self.websession.cookies)  # pretty ugly but seems to work for now
+            return (
+                "EMEASMSESSION" in self.websession.cookies
+            )  # pretty ugly but seems to work for now
         except KeyError:
             pass
         return False
@@ -71,12 +73,16 @@ class ADPWorld:
                 credentials[key] = config["credentials"][key]
             encoded_pw = credentials.pop("passwordb64")
             credentials["password"] = base64.b64decode(encoded_pw.encode("utf-8"))
-        except KeyError:  # If the credentials are not complete in the config, ask the user interactively
+        except (
+            KeyError
+        ):  # If the credentials are not complete in the config, ask the user interactively
             pass
 
         try:  # Try to read and parse the config file
             credentials["cookie"] = config["credentials"]["cookie"]
-        except KeyError:  # If the credentials are not complete in the config, ask the user interactively
+        except (
+            KeyError
+        ):  # If the credentials are not complete in the config, ask the user interactively
             pass
 
         if len(credentials) <= 0:
@@ -84,7 +90,6 @@ class ADPWorld:
             credentials["username"] = input("Username: ")
             credentials["password"] = getpass.getpass()
         return credentials
-
 
     def cookie_login(self):
         self.websession.cookies.set("EMEASMSESSION", self.credentials["cookie"])
@@ -108,6 +113,7 @@ class ADPWorld:
             return True
         return False
 
+
 class PayslipApplication:
     def __init__(self, adpworld):
         self.adpworld = adpworld
@@ -125,14 +131,20 @@ class PayslipApplication:
                 filter(lambda x: "ePayslip" in x.text, soup.find_all("a"))
             )
             param = payslip_param[0].get("onclick")
-            param_args = param.split(";")[0].split(".")[1].split("(")[1].split(")")[0].split(",", 1)
-            json_arg = param_args[1].replace("\\", "").replace("'", "\"")
-            form_name = param_args[0].replace("'", "").replace("\"", "")
+            param_args = (
+                param.split(";")[0]
+                .split(".")[1]
+                .split("(")[1]
+                .split(")")[0]
+                .split(",", 1)
+            )
+            json_arg = param_args[1].replace("\\", "").replace("'", '"')
+            form_name = param_args[0].replace("'", "").replace('"', "")
             parsed_args = json.loads(json_arg)
             payslip_args = parsed_args
             form_inputs = list(soup.find("form", {"id": form_name}).find_all("input"))
             for form_input in form_inputs:
-              payslip_args.update({form_input.get("name"): form_input.get("value")})
+                payslip_args.update({form_input.get("name"): form_input.get("value")})
             url = self.adpworld.dashboard_url + "ADPWorld/faces/portal/index.xhtml"
 
             # Access the ePayslip app to read out a few parameters and the total amount of stored payslips
@@ -154,11 +166,9 @@ class PayslipApplication:
 
     @property
     def total_payslips(self):
-        paginator_text = (
-            self.epayslip_soup
-            .find("span", {"class": "ui-paginator-current"})
-            .text
-        )
+        paginator_text = self.epayslip_soup.find(
+            "span", {"class": "ui-paginator-current"}
+        ).text
         total_payslips = int(re.match(".*?([0-9]*)$", paginator_text).group(1))
         return total_payslips
 
@@ -180,7 +190,9 @@ class PayslipApplication:
         )[0].get("id")
 
         # Extract the viewstate of the jakarta application
-        viewstate_element = epaylistform.find_all("input", {"name": "jakarta.faces.ViewState"})[0]
+        viewstate_element = epaylistform.find_all(
+            "input", {"name": "jakarta.faces.ViewState"}
+        )[0]
         viewstate = {viewstate_element.get("name"): viewstate_element.get("value")}
 
         # Now lets assemble and request the data from the paginator endpoint
