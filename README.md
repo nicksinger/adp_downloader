@@ -13,7 +13,11 @@ cd adp_downloader
 mkdir downloads
 ```
 
-**Note** for openSUSE users: Make sure you've installed `python3-requests` and `python3-beautifulsoup4`.
+**Note** for openSUSE users: Make sure you've installed `python3-requests` and `python3-beautifulsoup4`:
+
+```
+zypper in python3-requests python3-beautifulsoup4
+```
 
 Alternatively and for development you can get all development requirements
 with
@@ -24,20 +28,38 @@ pip install -r requirements.txt
 
 # Configuration
 
-Create a config.ini in the same directory. The file has the following format:
+Use your browsers developer tools or an extension like
+[cookies.txt](https://addons.mozilla.org/de/firefox/addon/cookies-txt/) to
+extract the cookie which will be downloaded as `cookies.txt`
+
+Create a config.ini in the same directory (NOT the newly created `downloads`
+directory!). The file has to have the following format:
 
 ```
 [credentials]
 cookie = your_emeasmsession_cookie
 ```
 
-where "your_emeasmsession_cookie" corresponds to the `EMEASMSESSION`-cookie set by the web application after you logged in.
-You can use your browsers developer tools or an extension like [cookies.txt](https://addons.mozilla.org/de/firefox/addon/cookies-txt/) to extract it.
+where "your_emeasmsession_cookie" corresponds to the `EMEASMSESSION`-cookie
+set by the web application after you logged in. This is a very long string in
+the downloaded file `cookies.txt` next to `EMEASMSESSION`.
+
+**Note** `config.ini` needs to be in the same directory as
+the script downloader.py.
+
 
 # Execution
 
 Simply run `python downloader.py` and watch it fetch your documents.
-By default the downloader will create a local sqlite database to remember already downloaded files. Each new execution of the downloader will only download newly added files to your disk. This allows you to easily run the downloader in a cron job.
+
+By default the downloader will create a local sqlite database to remember
+already downloaded files. Each new execution of the downloader will only
+download newly added files to your disk. This allows you to easily run the
+downloader in a cron job.
+
+**Note** If you are asked for your credentials to log in, then the script
+didn't find the `config.ini` or `cookies.txt`.
+
 
 ## Contribute
 
