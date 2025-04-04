@@ -1,1 +1,4 @@
 config.ini
+downloads
+__pycache__
+download_history.db
