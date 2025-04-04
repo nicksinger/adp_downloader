@@ -55,12 +55,11 @@ class ADPWorld:
 
     @property
     def logged_in(self):
-        # If we have a session cookie we can assume the login worked
         try:
-            return (
-                "EMEASMSESSION" in self.websession.cookies
-            )  # pretty ugly but seems to work for now
-        except KeyError:
+            req = self.websession.get(self.dashboard_url)
+            soup = BeautifulSoup(req.text, "html.parser")
+            return not ("sign in" in soup.title.text.lower())
+        except Exception:
             pass
         return False
 
@@ -110,7 +109,7 @@ class ADPWorld:
     def login(self):
         if "cookie" in self.credentials:
             self.cookie_login()
-            return True
+            return self.logged_in
         return False
 
 

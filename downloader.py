@@ -126,7 +126,7 @@ if __name__ == "__main__":
     if adpworld.login():
         print("Success!")
     else:
-        print("Failed…")
+        print("Failed.")
         print("Please check your credentials!")
         sys.exit(1)
 
