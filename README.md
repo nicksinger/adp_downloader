@@ -44,7 +44,7 @@ where "your_emeasmsession_cookie" corresponds to the `EMEASMSESSION`-cookie
 set by the web application after you logged in. This is a very long string in
 the downloaded file `cookies.txt` next to `EMEASMSESSION`.
 
-**Note** Both `config.ini` and `cookies.txt` need to be in the same directory as
+**Note** `config.ini` needs to be in the same directory as
 the script downloader.py.
 
 
