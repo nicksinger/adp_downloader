@@ -2,18 +2,29 @@
 import datetime
 import sqlite3
 import sys
+import argparse
 from pathlib import Path
 
 from adp import ADPWorld, PayslipApplication
 
 
 class Downloader:
-    def __init__(self, adpworld):
+    def __init__(self, adpworld, download_duplicates = False):
         self.adpworld = adpworld
+        self.download_duplicates = download_duplicates
         self.db = DB()
 
+    def _get_filename(self, filename):
+        index = 0
+        file = Path(filename)
+        (name, ext) = filename.split(".")
+        while file.exists():
+            index += 1
+            file = Path(name + "_" + str(index) + "." + ext)
+        return file.name
+
     def download(self, adpdocument):
-        if self.db.document_present(adpdocument):
+        if self.db.document_present(adpdocument) and not self.download_duplicates:
             return False
         self.db.persist(adpdocument)
         req = self.adpworld.websession.get(adpdocument.url)
@@ -27,7 +38,8 @@ class Downloader:
         pdf_filename = cd_header.split('"')[1]
         assert "/" not in pdf_filename
         Path("downloads").mkdir(exist_ok=True)
-        with open("downloads/" + pdf_filename, "wb") as fp:
+        target_filename = self._get_filename("downloads/" + pdf_filename)
+        with open("downloads/" + target_filename, "wb") as fp:
             fp.write(req.content)
         return True
 
@@ -120,6 +132,10 @@ class DB:
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='adpworld.de scraper')
+    parser.add_argument('--download-all', default=False, action='store_true',
+                        help='Download all files, including those with filenames matching already downloaded files')
+    args = parser.parse_args()
     print("Welcome! Starting up the adpworld.de scraper.")
     adpworld = ADPWorld()
     print("Trying to log in… ", end="")
@@ -130,9 +146,14 @@ if __name__ == "__main__":
         print("Please check your credentials!")
         sys.exit(1)
 
+    if args.download_all:
+        print("Will download all documents, including those with duplicate file names. Duplicate files will have a numeric index before the file extension")
+    else:
+        print("Will skip download of documents with the same file name")
+
     print("Fetching all available payslips…", end="")
     payslips = PayslipApplication(adpworld)
-    downloader = Downloader(adpworld)
+    downloader = Downloader(adpworld, args.download_all)
     print(" Done.")
     print("Starting to download new payslips:")
     for document in payslips.documents:
