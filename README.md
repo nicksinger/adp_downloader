@@ -10,7 +10,7 @@ that it might break and does not work at all. Feel free to try it anyway and rep
 ```
 git clone https://github.com/nicksinger/adp_downloader.git
 cd adp_downloader
-mkdir downloads
+mkdir -p downloads
 ```
 
 **Note** for SUSE/openSUSE users: Make sure you've installed `python3-requests` and `python3-beautifulsoup4`.
