@@ -76,6 +76,13 @@ class DB:
         )
         self.connection.commit()
 
+    def supports_upload_date(self):
+        c = self.connection.cursor()
+        c.execute(
+            """SELECT COUNT(*) FROM pragma_table_info('documents') WHERE name='upload_date';"""
+        )
+        return bool(c.fetchone()[0])
+
     def persist(self, adpdocument):
         c = self.connection.cursor()
         c.execute(
@@ -174,6 +181,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print("Welcome! Starting up the adpworld.de scraper.")
     adpworld = ADPWorld()
+    downloader = Downloader(adpworld, args.download_all)
+    if not downloader.db.supports_upload_date():
+        print(
+            "Database does not support document upload date to avoid duplicates. Please backup your old download_history.db-file and move it to a different place. Do the same with your downloads folder to avoid a mix of old and new file(names)."
+        )
+        sys.exit(1)
     print("Trying to log in… ", end="")
     if adpworld.login():
         print("Success!")
@@ -191,7 +204,6 @@ if __name__ == "__main__":
 
     print("Fetching all available payslips…", end="")
     payslips = PayslipApplication(adpworld)
-    downloader = Downloader(adpworld, args.download_all)
     print(" Done.")
     print("Starting to download new payslips:")
     for document in payslips.documents:
