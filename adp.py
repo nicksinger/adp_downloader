@@ -16,32 +16,53 @@ http.client._MAXHEADERS = 1000
 
 
 class ADPDocument:
-    def __init__(self, adpworld, document_element):
+    def __init__(self, payslipapp, document_element):
+        self._document_details = None
+        self.payslipapp = payslipapp
         columns = document_element.find_all("td")
         self.company_id = columns[1].text
         self.employee_nr = columns[2].text
         self.type = columns[3].text
-        self.long_name = columns[4].text
+        self.subject = columns[4].text
         self.date = datetime.datetime.strptime(columns[5].text, "%d.%m.%Y")
+        self.file_date = self.date.strftime("%Y%m%d")
         self.pages = columns[6].text
         self.size = columns[7].text
         url_path = columns[8].find("a").get("href")
         self.url = parse.urlunparse(
             (
-                adpworld.ADPWORLD_URL.scheme,
-                adpworld.ADPWORLD_URL.netloc,
+                self.payslipapp.adpworld.ADPWORLD_URL.scheme,
+                self.payslipapp.adpworld.ADPWORLD_URL.netloc,
                 url_path,
                 "",
                 "",
                 "",
             )
         )
+        self.row_index = document_element.get("data-ri", "")
+        self.row_key = document_element.get("data-rk", "")
+
+    @property
+    def upload_date(self):
+        if not self._document_details:
+            self._fetch_details()
+        date_attribute = self._document_details["date attribute"]
+        return datetime.datetime.strptime(date_attribute, "%y%m%d")
+
+    def _fetch_details(self):
+        self._document_details = {}
+        details = self.payslipapp.fetch_row_details(self.row_index, self.row_key)
+        all_details = details.find_all("label")
+        for detail in all_details:
+            parent = detail.parent
+            label = parent.find("label").text.lower()
+            value = parent.find("input").get("value")
+            self._document_details.update({label: value})
 
     @property
     def estimated_filename(self):
-        file_date = self.date.strftime("%Y%m%d")
         return "{}_{}_{}_{}.pdf".format(
-            file_date, self.company_id, self.employee_nr, self.type
+            self.file_date, self.company_id, self.employee_nr, self.type
         )
 
 
@@ -171,7 +192,7 @@ class PayslipApplication:
         total_payslips = int(re.match(".*?([0-9]*)$", paginator_text).group(1))
         return total_payslips
 
-    def paginator_xhr(self, first=0, rows=20):
+    def _call_xhr(self, name, parameter):
         form_inputs = list(
             self.epayslip_soup.find_all("input")
         )  # All inputs inside the form. Some of them we need to submit
@@ -201,11 +222,13 @@ class PayslipApplication:
             "jakarta.faces.partial.execute": magic_application_id,
             "jakarta.faces.partial.render": magic_application_id,
             magic_application_id: magic_application_id,
-            magic_application_id + "_pagination": True,
-            magic_application_id + "_first": first,
-            magic_application_id + "_rows": rows,
+            magic_application_id + "_" + name: True,
             magic_application_id + "_encodeFeature": True,
         }
+        for param_name in parameter.keys():
+            param_value = parameter[param_name]
+            data.update({magic_application_id + "_" + param_name: param_value})
+
         data.update(viewstate)
         xhr_link = parse.urlunparse(
             (
@@ -227,8 +250,18 @@ class PayslipApplication:
             "./changes/update[@id='{}']".format(magic_application_id)
         )  # Node containing HTML
         soup = BeautifulSoup(changes.text, "html.parser")
+        return soup
+
+    def paginator_xhr(self, first=0, rows=20):
+        soup = self._call_xhr("pagination", {"first": first, "rows": rows})
         page_documents = []
         for row in soup.find_all("tr"):
-            page_documents.append(ADPDocument(self.adpworld, row))
+            page_documents.append(ADPDocument(self, row))
 
         return page_documents
+
+    def fetch_row_details(self, row_index, row_key):
+        soup = self._call_xhr(
+            "rowExpansion", {"expandedRowIndex": row_index, "expandedRowKey": row_key}
+        )
+        return soup

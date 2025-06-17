@@ -9,7 +9,7 @@ from adp import ADPWorld, PayslipApplication
 
 
 class Downloader:
-    def __init__(self, adpworld, download_duplicates = False):
+    def __init__(self, adpworld, download_duplicates=False):
         self.adpworld = adpworld
         self.download_duplicates = download_duplicates
         self.db = DB()
@@ -34,8 +34,18 @@ class Downloader:
                     adpdocument.url
                 )
             )
-        cd_header = req.headers.get("Content-Disposition")
-        pdf_filename = cd_header.split('"')[1]
+        # Ignore Content-Disposition header because the filenames are not unique
+        # cd_header = req.headers.get("Content-Disposition")
+        # pdf_filename = cd_header.split('"')[1]
+        pdf_filename = "{}_{}_{}_{}_{}_{}.pdf".format(
+            adpdocument.file_date,
+            adpdocument.company_id,
+            adpdocument.employee_nr,
+            adpdocument.type,
+            adpdocument.subject,
+            adpdocument.upload_date.strftime("%Y%m%d"),
+        )
+
         assert "/" not in pdf_filename
         Path("downloads").mkdir(exist_ok=True)
         target_filename = self._get_filename("downloads/" + pdf_filename)
@@ -59,7 +69,10 @@ class DB:
             """CREATE TABLE IF NOT EXISTS document_types (id INTEGER PRIMARY KEY AUTOINCREMENT, type text NOT NULL, UNIQUE(type))"""
         )
         c.execute(
-            """CREATE TABLE IF NOT EXISTS documents (company_id INTEGER, person_id INTEGER, document_type INTEGER, document_date TEXT, download_date TEXT, FOREIGN KEY(company_id) REFERENCES companies(id), FOREIGN KEY(person_id) REFERENCES persons(id), FOREIGN KEY(document_type) REFERENCES document_types(id), UNIQUE(company_id, person_id, document_type, document_date))"""
+            """CREATE TABLE IF NOT EXISTS document_subjects (id INTEGER PRIMARY KEY AUTOINCREMENT, subject text NOT NULL, UNIQUE(subject))"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS documents (company_id INTEGER, person_id INTEGER, document_type INTEGER, document_subject INTEGER, document_date TEXT, download_date TEXT, upload_date TEXT, FOREIGN KEY(company_id) REFERENCES companies(id), FOREIGN KEY(person_id) REFERENCES persons(id), FOREIGN KEY(document_type) REFERENCES document_types(id), FOREIGN KEY(document_subject) REFERENCES document_subjects(id), UNIQUE(company_id, person_id, document_type, document_subject, document_date))"""
         )
         self.connection.commit()
 
@@ -77,22 +90,31 @@ class DB:
             """INSERT OR IGNORE INTO document_types(type) VALUES(?)""",
             (adpdocument.type,),
         )
-        company_id, employee_id, type_id = self.query_indices(
-            adpdocument.company_id, adpdocument.employee_nr, adpdocument.type
+        c.execute(
+            """INSERT OR IGNORE INTO document_subjects(subject) VALUES(?)""",
+            (adpdocument.subject,),
+        )
+        company_id, employee_id, type_id, subject_id = self.query_indices(
+            adpdocument.company_id,
+            adpdocument.employee_nr,
+            adpdocument.type,
+            adpdocument.subject,
         )
         c.execute(
-            """INSERT OR IGNORE INTO documents (company_id, person_id, document_type, document_date, download_date) VALUES (?, ?, ?, DATE(?), DATETIME(?));""",
+            """INSERT OR IGNORE INTO documents (company_id, person_id, document_type, document_subject, document_date, download_date, upload_date) VALUES (?, ?, ?, ?, DATE(?), DATETIME(?), DATE(?));""",
             (
                 company_id,
                 employee_id,
                 type_id,
+                subject_id,
                 adpdocument.date.strftime("%Y-%m-%d"),
                 datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                adpdocument.upload_date.strftime("%Y-%m-%d"),
             ),
         )
         self.connection.commit()
 
-    def query_indices(self, company_id, employee_nr, document_type):
+    def query_indices(self, company_id, employee_nr, document_type, document_subject):
         c = self.connection.cursor()
         try:
             c.execute("""SELECT id FROM companies WHERE company=?""", (company_id,))
@@ -103,7 +125,12 @@ class DB:
                 """SELECT id FROM document_types WHERE type=?""", (document_type,)
             )
             type_id = c.fetchone()[0]
-            return (company_id, employee_id, type_id)
+            c.execute(
+                """SELECT id FROM document_subjects WHERE subject=?""",
+                (document_subject,),
+            )
+            subject_id = c.fetchone()[0]
+            return (company_id, employee_id, type_id, subject_id)
         except TypeError:
 
             class TableIndexError(Exception):
@@ -114,16 +141,21 @@ class DB:
     def document_present(self, adpdocument):
         c = self.connection.cursor()
         try:
-            company_id, employee_id, type_id = self.query_indices(
-                adpdocument.company_id, adpdocument.employee_nr, adpdocument.type
+            company_id, employee_id, type_id, subject_id = self.query_indices(
+                adpdocument.company_id,
+                adpdocument.employee_nr,
+                adpdocument.type,
+                adpdocument.subject,
             )
             result = c.execute(
-                """SELECT download_date FROM documents WHERE person_id = ? AND document_type = ? AND company_id = ? AND document_date = ?""",
+                """SELECT download_date FROM documents WHERE person_id = ? AND document_type = ? AND company_id = ? AND document_date = ? AND document_subject = ? AND upload_date = ?""",
                 (
                     employee_id,
                     type_id,
                     company_id,
                     adpdocument.date.strftime("%Y-%m-%d"),
+                    subject_id,
+                    adpdocument.upload_date.strftime("%Y-%m-%d"),
                 ),
             )
             return len(result.fetchall()) > 0
@@ -132,9 +164,13 @@ class DB:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='adpworld.de scraper')
-    parser.add_argument('--download-all', default=False, action='store_true',
-                        help='Download all files, including those with filenames matching already downloaded files')
+    parser = argparse.ArgumentParser(description="adpworld.de scraper")
+    parser.add_argument(
+        "--download-all",
+        default=False,
+        action="store_true",
+        help="Download all files, including those with filenames matching already downloaded files",
+    )
     args = parser.parse_args()
     print("Welcome! Starting up the adpworld.de scraper.")
     adpworld = ADPWorld()
@@ -147,7 +183,9 @@ if __name__ == "__main__":
         sys.exit(1)
 
     if args.download_all:
-        print("Will download all documents, including those with duplicate file names. Duplicate files will have a numeric index before the file extension")
+        print(
+            "Will download all documents, including those with duplicate file names. Duplicate files will have a numeric index before the file extension"
+        )
     else:
         print("Will skip download of documents with the same file name")
 
@@ -157,7 +195,15 @@ if __name__ == "__main__":
     print(" Done.")
     print("Starting to download new payslips:")
     for document in payslips.documents:
-        print("\tDownloading {}…".format(document.estimated_filename), end="")
+        pdf_filename = "{}_{}_{}_{}_{}_{}.pdf".format(
+            document.file_date,
+            document.company_id,
+            document.employee_nr,
+            document.type,
+            document.subject,
+            document.upload_date.strftime("%Y%m%d"),
+        )
+        print("\tDownloading {}…".format(pdf_filename), end="")
         download_was_done = downloader.download(document)
         if download_was_done:
             print(" done.")
