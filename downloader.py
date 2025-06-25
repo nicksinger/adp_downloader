@@ -207,14 +207,21 @@ if __name__ == "__main__":
     print(" Done.")
     print("Starting to download new payslips:")
     for document in payslips.documents:
-        pdf_filename = "{}_{}_{}_{}_{}_{}.pdf".format(
-            document.file_date,
-            document.company_id,
-            document.employee_nr,
-            document.type,
-            document.subject,
-            document.upload_date.strftime("%Y%m%d"),
-        )
+        try:
+            pdf_filename = "{}_{}_{}_{}_{}_{}.pdf".format(
+                document.file_date,
+                document.company_id,
+                document.employee_nr,
+                document.type,
+                document.subject,
+                document.upload_date.strftime("%Y%m%d"),
+            )
+        except KeyError as e:
+            if 'date attribute' in str(e):
+                print("Uh oh. That did not work. Ensure to set your ADP profile to 'en' for english language.")
+                sys.exit(1)
+            else:
+                raise e
         print("\tDownloading {}…".format(pdf_filename), end="")
         download_was_done = downloader.download(document)
         if download_was_done:
