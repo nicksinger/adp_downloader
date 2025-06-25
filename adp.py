@@ -123,7 +123,7 @@ class ADPWorld:
                 "",
             )
         )
-        redirect_req = self.websession.get(login_endpoint)
+        _ = self.websession.get(login_endpoint)
         self.dashboard_url = login_endpoint
         return True
 
@@ -193,7 +193,7 @@ class PayslipApplication:
         return total_payslips
 
     def _call_xhr(self, name, parameter):
-        form_inputs = list(
+        _ = list(
             self.epayslip_soup.find_all("input")
         )  # All inputs inside the form. Some of them we need to submit
 
