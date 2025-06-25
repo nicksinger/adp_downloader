@@ -10,10 +10,10 @@ that it might break and does not work at all. Feel free to try it anyway and rep
 ```
 git clone https://github.com/nicksinger/adp_downloader.git
 cd adp_downloader
-mkdir downloads
+mkdir -p downloads
 ```
 
-**Note** for openSUSE users: Make sure you've installed `python3-requests` and `python3-beautifulsoup4`.
+**Note** for SUSE/openSUSE users: Make sure you've installed `python3-requests` and `python3-beautifulsoup4`.
 
 Alternatively and for development you can get all development requirements
 with
@@ -36,7 +36,7 @@ You can use your browsers developer tools or an extension like [cookies.txt](htt
 
 # Execution
 
-Simply run `python downloader.py` and watch it fetch your documents.
+Simply run `python3 downloader.py` and watch it fetch your documents.
 By default the downloader will create a local sqlite database to remember already downloaded files. Each new execution of the downloader will only download newly added files to your disk. This allows you to easily run the downloader in a cron job.
 
 ## Contribute
