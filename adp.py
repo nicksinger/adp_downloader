@@ -79,7 +79,7 @@ class ADPWorld:
         try:
             req = self.websession.get(self.dashboard_url)
             soup = BeautifulSoup(req.text, "html.parser")
-            return not ("sign in" in soup.title.text.lower())
+            return "sign in" not in soup.title.text.lower()
         except Exception:
             pass
         return False
